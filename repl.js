@@ -84,7 +84,23 @@ const evaluate = (exp, locals) => {
   if (isPair(exp)) {
     const arr = [...exp]
     const prim = typeof arr[0] === "symbol" ? Symbol.keyFor(arr[0]) : undefined
-    if (prim === "define") {
+    if (prim === "cond") {
+      const _ = (clauses) => {
+        if (isNil(clauses)) {
+          return evaluate(Symbol.for("nil"), locals)
+        }
+
+        const [p, c] = [...car(clauses)].map((x) =>
+          typeof x === "symbol" && Symbol.keyFor(x) === "else"
+            ? evaluate(true, locals)
+            : evaluate(x, locals)
+        )
+
+        return `(${p} ? ${c} : ${_(cdr(clauses))})`
+      }
+
+      return _(cdr(exp))
+    } else if (prim === "define") {
       if (isPair(arr[1])) {
         return evaluate(
           list(
@@ -100,6 +116,17 @@ const evaluate = (exp, locals) => {
       const val = evaluate(arr[2], locals)
 
       return `(setVar("${name}", ${val}),Symbol.for("${name}"))`
+    } else if (prim === "if") {
+      const [, p, c, a] = arr
+
+      return evaluate(
+        list(
+          Symbol.for("cond"),
+          list(p, c),
+          ...(a !== undefined ? [list(Symbol.for("else"), a)] : [])
+        ),
+        locals
+      )
     } else if (prim === "lambda") {
       const params = [...arr[1]].map((x) => Symbol.keyFor(x))
       const newLocals = new Set([...locals, ...params])
@@ -144,10 +171,14 @@ const prn = (exp) => {
 }
 
 const core = {
+  nil: nil,
   "+": (...ns) => ns.reduce((r, n) => r + n, 0),
   "-": (n, ...ns) => (ns.length === 0 ? -n : ns.reduce((r, n) => r - n, n)),
   "/": (n, ...ns) => ns.reduce((r, n) => r / n, n),
   "*": (...ns) => ns.reduce((r, n) => r * n, 1),
+  "=": (a, b) => a === b,
+  ">": (a, b) => a > b,
+  "<": (a, b) => a < b,
 }
 
 const getVar = (key) => {
@@ -176,7 +207,7 @@ const _ = () => {
 
     try {
       const compiled = evaluate(read(answer), new Set())
-      // console.log(compiled)
+      console.log(compiled)
       console.log(prn(eval(compiled)))
     } catch (e) {
       console.error(e)
