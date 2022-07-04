@@ -232,27 +232,31 @@ const { getVar, setVar } = createEnv((key) => {
   return core[key]
 })
 
-const _ = () => {
+const _ = (prev) => {
   rl.question("\n  > ", (answer) => {
     if (answer === ":q") {
       rl.close()
       // console.log("Bye bye")
       return
     } else if (answer === "") {
-      _()
+      _(prev)
 
       return
     }
 
     try {
-      const compiled = evaluate(read(answer), new Set())
+      const compiled = evaluate(read(prev + " " + answer), new Set())
       console.log("  " + compiled)
       console.log(prn(eval(compiled)))
+      _("")
     } catch (e) {
-      console.error(e)
+      if (e.message.includes("Missing )")) {
+        _(prev + " " + answer)
+      } else {
+        console.error(e)
+        _("")
+      }
     }
-
-    _()
   })
 }
-_()
+_("")
