@@ -84,7 +84,11 @@ const evaluate = (exp, locals) => {
   if (isPair(exp)) {
     const arr = [...exp]
     const prim = typeof arr[0] === "symbol" ? Symbol.keyFor(arr[0]) : undefined
-    if (prim === "cond") {
+    if (prim === "and") {
+      const [, ...terms] = arr
+
+      return terms.map((x) => evaluate(x, locals)).join("&&")
+    } else if (prim === "cond") {
       const _ = (clauses) => {
         if (isNil(clauses)) {
           return evaluate(Symbol.for("nil"), locals)
@@ -96,7 +100,7 @@ const evaluate = (exp, locals) => {
             : evaluate(x, locals)
         )
 
-        return `(${p} ? ${c} : ${_(cdr(clauses))})`
+        return `(${p} !== false ? ${c} : ${_(cdr(clauses))})`
       }
 
       return _(cdr(exp))
@@ -133,6 +137,10 @@ const evaluate = (exp, locals) => {
       const body = evaluate(arr[2], newLocals)
 
       return `((${params.join(",")})=>${body})`
+    } else if (prim === "or") {
+      const [, ...terms] = arr
+
+      return terms.map((x) => evaluate(x, locals)).join("||")
     }
 
     const [op, ...args] = arr.map((x) => evaluate(x, locals))
@@ -152,6 +160,14 @@ const prn = (exp) => {
     return Symbol.keyFor(exp)
   }
 
+  if (typeof exp === "boolean") {
+    return exp ? "#t" : "#f"
+  }
+
+  if (typeof exp === "number") {
+    return String(exp)
+  }
+
   if (isPair(exp)) {
     const r = []
     let c = exp
@@ -166,12 +182,12 @@ const prn = (exp) => {
   if (typeof exp === "function") {
     return `[PROC ${exp.name || "LAMBDA"}]`
   }
-
-  return exp
 }
 
 const core = {
   nil: nil,
+  "#t": true,
+  "#f": false,
   "+": (...ns) => ns.reduce((r, n) => r + n, 0),
   "-": (n, ...ns) => (ns.length === 0 ? -n : ns.reduce((r, n) => r - n, n)),
   "/": (n, ...ns) => ns.reduce((r, n) => r / n, n),
@@ -179,6 +195,10 @@ const core = {
   "=": (a, b) => a === b,
   ">": (a, b) => a > b,
   "<": (a, b) => a < b,
+  not: (x) => !x,
+  abs: (x) => (x < 0 ? -x : x),
+  exp: (x) => Math.exp(x),
+  log: (x) => Math.log(x),
 }
 
 const getVar = (key) => {
@@ -207,7 +227,7 @@ const _ = () => {
 
     try {
       const compiled = evaluate(read(answer), new Set())
-      console.log(compiled)
+      console.log("  " + compiled)
       console.log(prn(eval(compiled)))
     } catch (e) {
       console.error(e)
