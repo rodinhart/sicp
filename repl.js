@@ -110,7 +110,7 @@ const evaluate = (exp, locals) => {
           list(
             arr[0],
             car(arr[1]),
-            list(Symbol.for("lambda"), cdr(arr[1]), arr[2])
+            list(Symbol.for("lambda"), cdr(arr[1]), ...arr.slice(2))
           ),
           locals
         )
@@ -134,9 +134,15 @@ const evaluate = (exp, locals) => {
     } else if (prim === "lambda") {
       const params = [...arr[1]].map((x) => Symbol.keyFor(x))
       const newLocals = new Set([...locals, ...params])
-      const body = evaluate(arr[2], newLocals)
+      const body = arr
+        .slice(2)
+        .map((x) => evaluate(x, newLocals))
+        .map((s) => "(" + s + ")")
+        .join(",")
 
-      return `((${params.join(",")})=>${body})`
+      return `(({env,getVar,setVar}) => ((${params.join(
+        ","
+      )})=>(${body})))(createEnv(env))`
     } else if (prim === "or") {
       const [, ...terms] = arr
 
@@ -201,17 +207,25 @@ const core = {
   log: (x) => Math.log(x),
 }
 
-const getVar = (key) => {
-  if (!(key in core)) {
-    throw new Error(`Unknown symbol ${key}`)
+const createEnv = (env) => {
+  const newEnv = { ...env }
+
+  return {
+    env: newEnv,
+    getVar: (key) => {
+      if (!(key in newEnv)) {
+        throw new Error(`Unknown symbol ${key}`)
+      }
+
+      return newEnv[key]
+    },
+    setVar: (key, val) => {
+      newEnv[key] = val
+    },
   }
-
-  return core[key]
 }
 
-const setVar = (key, val) => {
-  core[key] = val
-}
+const { env, getVar, setVar } = createEnv(core)
 
 const _ = () => {
   rl.question("\n  > ", (answer) => {
