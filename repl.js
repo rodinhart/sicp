@@ -140,9 +140,9 @@ const evaluate = (exp, locals) => {
         .map((s) => "(" + s + ")")
         .join(",")
 
-      return `(({env,getVar,setVar}) => ((${params.join(
+      return `(({getVar,setVar}) => ((${params.join(
         ","
-      )})=>(${body})))(createEnv(env))`
+      )})=>(${body})))(createEnv(getVar))`
     } else if (prim === "or") {
       const [, ...terms] = arr
 
@@ -207,25 +207,30 @@ const core = {
   log: (x) => Math.log(x),
 }
 
-const createEnv = (env) => {
-  const newEnv = { ...env }
+const createEnv = (getVar) => {
+  const env = {}
 
   return {
-    env: newEnv,
     getVar: (key) => {
-      if (!(key in newEnv)) {
-        throw new Error(`Unknown symbol ${key}`)
+      if (!(key in env)) {
+        return getVar(key)
       }
 
-      return newEnv[key]
+      return env[key]
     },
     setVar: (key, val) => {
-      newEnv[key] = val
+      env[key] = val
     },
   }
 }
 
-const { env, getVar, setVar } = createEnv(core)
+const { getVar, setVar } = createEnv((key) => {
+  if (!(key in core)) {
+    throw new Error(`Unknown symbol ${key}`)
+  }
+
+  return core[key]
+})
 
 const _ = () => {
   rl.question("\n  > ", (answer) => {
