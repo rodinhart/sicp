@@ -1,3 +1,9 @@
+// TODO
+// support 1.0
+// proper recursion
+// (lambda (x y.z) z)
+// (lambda (hello-world) hello-world)
+
 const readline = require("readline")
 
 const rl = readline.createInterface({
@@ -205,6 +211,14 @@ const core = {
   abs: (x) => (x < 0 ? -x : x),
   exp: (x) => Math.exp(x),
   log: (x) => Math.log(x),
+  display: (...xs) => (console.log(...xs), nil),
+  newline: () => console.log(),
+  "even?": (n) => n % 2 === 0,
+  "odd?": (n) => n % 2 === 1,
+  remainder: (a, b) => a % b,
+  square: (x) => x * x,
+  runtime: () => Date.now(),
+  power: (a, b) => a ** b, // is this scheme?
 }
 
 const createEnv = (getVar) => {
