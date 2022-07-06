@@ -1,7 +1,5 @@
 // TODO
-// proper recursion
 // (lambda (x y.z) z)
-// (lambda (hello-world) hello-world)
 
 const readline = require("readline")
 
@@ -75,103 +73,118 @@ const read = (s) => {
 }
 
 const evaluate = (exp, getVar, setVar) => {
-  if (typeof exp === "number") {
-    return exp
-  }
+  while (true) {
+    if (typeof exp === "number") {
+      return exp
+    }
 
-  if (typeof exp === "symbol") {
-    return getVar(Symbol.keyFor(exp))
-  }
+    if (typeof exp === "symbol") {
+      return getVar(Symbol.keyFor(exp))
+    }
 
-  if (isPair(exp)) {
-    const arr = [...exp]
-    const prim = typeof arr[0] === "symbol" ? Symbol.keyFor(arr[0]) : undefined
-    if (prim === "and") {
-      const [, ...terms] = arr
+    if (isPair(exp)) {
+      const arr = [...exp]
+      const prim =
+        typeof arr[0] === "symbol" ? Symbol.keyFor(arr[0]) : undefined
+      if (prim === "and") {
+        const [, ...terms] = arr
 
-      for (const x of terms) {
-        if (evaluate(x, getVar, setVar) === false) {
-          return false
+        for (const x of terms) {
+          if (evaluate(x, getVar, setVar) === false) {
+            return false
+          }
         }
-      }
 
-      return true
-    } else if (prim === "cond") {
-      const [, ...clauses] = arr
-      for (const clause of clauses) {
-        const [p, c] = [...clause]
-        const r =
-          typeof p === "symbol" && Symbol.keyFor(p) === "else"
-            ? true
-            : evaluate(p, getVar, setVar)
+        return true
+      } else if (prim === "cond") {
+        const [, ...clauses] = arr
+        exp = undefined
+        for (const clause of clauses) {
+          const [p, c] = [...clause]
+          const r =
+            typeof p === "symbol" && Symbol.keyFor(p) === "else"
+              ? true
+              : evaluate(p, getVar, setVar)
+          if (r !== false) {
+            exp = c
+            break
+          }
+        }
+
+        if (exp === undefined) {
+          return nil
+        }
+      } else if (prim === "define") {
+        if (isPair(arr[1])) {
+          return evaluate(
+            list(
+              arr[0],
+              car(arr[1]),
+              list(Symbol.for("lambda"), cdr(arr[1]), ...arr.slice(2))
+            ),
+            getVar,
+            setVar
+          )
+        }
+
+        const name = Symbol.keyFor(arr[1])
+        const val = evaluate(arr[2], getVar, setVar)
+
+        setVar(name, val)
+
+        return arr[1]
+      } else if (prim === "if") {
+        const [, p, c, a] = arr
+
+        const r = evaluate(p, getVar, setVar)
         if (r !== false) {
-          return evaluate(c, getVar, setVar)
+          exp = c
+        } else if (a !== undefined) {
+          exp = a
+        } else {
+          return nil
         }
-      }
-
-      return nil
-    } else if (prim === "define") {
-      if (isPair(arr[1])) {
-        return evaluate(
-          list(
-            arr[0],
-            car(arr[1]),
-            list(Symbol.for("lambda"), cdr(arr[1]), ...arr.slice(2))
-          ),
+      } else if (prim === "lambda") {
+        return {
+          names: [...arr[1]],
+          body: arr.slice(2),
           getVar,
-          setVar
-        )
-      }
-
-      const name = Symbol.keyFor(arr[1])
-      const val = evaluate(arr[2], getVar, setVar)
-
-      setVar(name, val)
-
-      return arr[1]
-    } else if (prim === "if") {
-      const [, p, c, a] = arr
-
-      return evaluate(
-        list(
-          Symbol.for("cond"),
-          list(p, c),
-          ...(a !== undefined ? [list(Symbol.for("else"), a)] : [])
-        ),
-        getVar,
-        setVar
-      )
-    } else if (prim === "lambda") {
-      return {
-        names: [...arr[1]],
-        body: arr.slice(2),
-        getVar,
-      }
-    } else if (prim === "or") {
-      const [, ...terms] = arr
-
-      for (const x of terms) {
-        if (evaluate(x, getVar, setVar) !== false) {
-          return true
         }
+      } else if (prim === "or") {
+        const [, ...terms] = arr
+
+        for (const x of terms) {
+          if (evaluate(x, getVar, setVar) !== false) {
+            return true
+          }
+        }
+
+        return false
+      } else {
+        const [op, ...args] = arr.map((x) => evaluate(x, getVar, setVar))
+        if (typeof op === "function") {
+          return op(...args)
+        }
+
+        const { names, body } = op
+        if (body.length === 0) {
+          return nil
+        }
+
+        const newEnv = createEnv(op.getVar)
+        names.forEach((name, i) => {
+          newEnv.setVar(Symbol.keyFor(name), args[i])
+        })
+
+        for (let i = 0; i + 1 < body.length; i += 1) {
+          evaluate(body[i], newEnv.getVar, newEnv.setVar)
+        }
+
+        exp = body[body.length - 1]
+        getVar = newEnv.getVar
+        setVar = newEnv.setVar
       }
-
-      return false
     }
-
-    const [op, ...args] = arr.map((x) => evaluate(x, getVar, setVar))
-    if (typeof op === "function") {
-      return op(...args)
-    }
-
-    const { names, body } = op
-    console.log(names, body)
-    const { getVar, setVar } = createEnv(op.getVar)
-    names.forEach((name, i) => {
-      setVar(Symbol.keyFor(name), args[i])
-    })
-
-    return body.reduce((_, x) => evaluate(x, getVar, setVar), nil)
   }
 }
 
