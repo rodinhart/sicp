@@ -1,5 +1,4 @@
 // TODO
-// support 1.0
 // proper recursion
 // (lambda (x y.z) z)
 // (lambda (hello-world) hello-world)
@@ -64,7 +63,7 @@ const read = (s) => {
       return cdr(r)
     }
 
-    return String(Number(x)) === x ? Number(x) : Symbol.for(x)
+    return Number.isFinite(Number(x)) ? Number(x) : Symbol.for(x)
   }
 
   return _(
@@ -75,16 +74,13 @@ const read = (s) => {
   )
 }
 
-// need env with parent
-const evaluate = (exp, locals) => {
+const evaluate = (exp, getVar, setVar) => {
   if (typeof exp === "number") {
-    return String(exp)
+    return exp
   }
 
   if (typeof exp === "symbol") {
-    const key = Symbol.keyFor(exp)
-
-    return locals.has(key) ? key : `getVar("${key}")`
+    return getVar(Symbol.keyFor(exp))
   }
 
   if (isPair(exp)) {
@@ -93,23 +89,27 @@ const evaluate = (exp, locals) => {
     if (prim === "and") {
       const [, ...terms] = arr
 
-      return terms.map((x) => evaluate(x, locals)).join("&&")
-    } else if (prim === "cond") {
-      const _ = (clauses) => {
-        if (isNil(clauses)) {
-          return evaluate(Symbol.for("nil"), locals)
+      for (const x of terms) {
+        if (evaluate(x, getVar, setVar) === false) {
+          return false
         }
-
-        const [p, c] = [...car(clauses)].map((x) =>
-          typeof x === "symbol" && Symbol.keyFor(x) === "else"
-            ? evaluate(true, locals)
-            : evaluate(x, locals)
-        )
-
-        return `(${p} !== false ? ${c} : ${_(cdr(clauses))})`
       }
 
-      return _(cdr(exp))
+      return true
+    } else if (prim === "cond") {
+      const [, ...clauses] = arr
+      for (const clause of clauses) {
+        const [p, c] = [...clause]
+        const r =
+          typeof p === "symbol" && Symbol.keyFor(p) === "else"
+            ? true
+            : evaluate(p, getVar, setVar)
+        if (r !== false) {
+          return evaluate(c, getVar, setVar)
+        }
+      }
+
+      return nil
     } else if (prim === "define") {
       if (isPair(arr[1])) {
         return evaluate(
@@ -118,14 +118,17 @@ const evaluate = (exp, locals) => {
             car(arr[1]),
             list(Symbol.for("lambda"), cdr(arr[1]), ...arr.slice(2))
           ),
-          locals
+          getVar,
+          setVar
         )
       }
 
       const name = Symbol.keyFor(arr[1])
-      const val = evaluate(arr[2], locals)
+      const val = evaluate(arr[2], getVar, setVar)
 
-      return `(setVar("${name}", ${val}),Symbol.for("${name}"))`
+      setVar(name, val)
+
+      return arr[1]
     } else if (prim === "if") {
       const [, p, c, a] = arr
 
@@ -135,32 +138,41 @@ const evaluate = (exp, locals) => {
           list(p, c),
           ...(a !== undefined ? [list(Symbol.for("else"), a)] : [])
         ),
-        locals
+        getVar,
+        setVar
       )
     } else if (prim === "lambda") {
-      const params = [...arr[1]].map((x) => Symbol.keyFor(x))
-      const newLocals = new Set([...locals, ...params])
-      const body = arr
-        .slice(2)
-        .map((x) => evaluate(x, newLocals))
-        .map((s) => "(" + s + ")")
-        .join(",")
-
-      return `(({getVar,setVar}) => ((${params.join(
-        ","
-      )})=>(${body})))(createEnv(getVar))`
+      return {
+        names: [...arr[1]],
+        body: arr.slice(2),
+        getVar,
+      }
     } else if (prim === "or") {
       const [, ...terms] = arr
 
-      return terms.map((x) => evaluate(x, locals)).join("||")
+      for (const x of terms) {
+        if (evaluate(x, getVar, setVar) !== false) {
+          return true
+        }
+      }
+
+      return false
     }
 
-    const [op, ...args] = arr.map((x) => evaluate(x, locals))
+    const [op, ...args] = arr.map((x) => evaluate(x, getVar, setVar))
+    if (typeof op === "function") {
+      return op(...args)
+    }
 
-    return `${op}(${args.join(",")})`
+    const { names, body } = op
+    console.log(names, body)
+    const { getVar, setVar } = createEnv(op.getVar)
+    names.forEach((name, i) => {
+      setVar(Symbol.keyFor(name), args[i])
+    })
+
+    return body.reduce((_, x) => evaluate(x, getVar, setVar), nil)
   }
-
-  return exp
 }
 
 const prn = (exp) => {
@@ -191,7 +203,7 @@ const prn = (exp) => {
     return "(" + r.join(" ") + ")"
   }
 
-  if (typeof exp === "function") {
+  if (typeof exp === "function" || "body" in exp) {
     return `[PROC ${exp.name || "LAMBDA"}]`
   }
 }
@@ -250,7 +262,6 @@ const _ = (prev) => {
   rl.question("\n  > ", (answer) => {
     if (answer === ":q") {
       rl.close()
-      // console.log("Bye bye")
       return
     } else if (answer === "") {
       _(prev)
@@ -259,9 +270,7 @@ const _ = (prev) => {
     }
 
     try {
-      const compiled = evaluate(read(prev + " " + answer), new Set())
-      console.log("  " + compiled)
-      console.log(prn(eval(compiled)))
+      console.log(prn(evaluate(read(prev + " " + answer), getVar, setVar)))
       _("")
     } catch (e) {
       if (e.message.includes("Missing )")) {
