@@ -218,3 +218,68 @@ b
     (else (iter n (+ a 1)))))
     
   (iter n 1))
+
+;; 1.28
+
+;; 1.29
+(define (sum term a next b) (if (> a b)
+  0
+  (+ (term a) (sum term (next a) next b))))
+
+(define (integral f a b dx)
+  (define (add-dx x)
+    (+ x dx))
+  (* (sum f (+ a (/ dx 2.0)) add-dx b) dx))
+
+(define (cube x) (* x x x))
+
+(define (simpson f a b n)
+  (define h (/ (- b a) n))
+  (* h (/ (sum (lambda (k) (* (if (= k 0) 1 (if (even? k) 2 4)) (cube (+ a (* k h))))) 0 inc n) 3)))
+
+; doesn't seem that much more accurate, just overestimates
+
+;; 1.30
+(define (sum term a next b)
+  (define (iter a result)
+    (if (> a b)
+      result
+      (iter (next a) (+ result (term a)))))
+  (iter a 0))
+
+;; 1.31
+(define (product term a next b) (if (> a b)
+  1
+  (* (term a) (product term (next a) next b))))
+
+(define (factorial n) (product identity 1 inc n))
+
+(define (pi n) (* 4 (product
+  (lambda (k) (if (even? k)
+    (/ k (inc k))
+    (/ (inc k) k))) 2 inc n)))
+
+(define (product term a next b)
+  (define (iter a result)
+    (if (> a b)
+      result
+      (iter (next a) (* result (term a)))))
+  (iter a 1))
+
+;; 1.32
+(define (accumulate combiner null-value term a next b)
+  (if (> a b)
+    null-value
+    (combiner (term a) (accumulate combiner null-value term (next a) next b))))
+
+(define (product term a next b) (accumulate * 1 term a next b))
+
+(define (accumulate combiner null-value term a next b)
+  (define (iter a result)
+    (if (> a b)
+      result
+      (iter (next a) (combiner (term a) result))))
+  (iter a null-value))
+
+;; 1.33
+

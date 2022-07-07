@@ -150,6 +150,18 @@ const evaluate = (exp, getVar, setVar) => {
           body: arr.slice(2),
           getVar,
         }
+      } else if (prim === "let") {
+        const bindings = [...arr[1]]
+        const body = arr.slice(2)
+
+        return evaluate(
+          list(
+            list(Symbol.for("lambda"), list(...bindings.map(car)), ...body),
+            ...bindings.map((x) => evaluate(car(cdr(x))))
+          ),
+          getVar,
+          setVar
+        )
       } else if (prim === "or") {
         const [, ...terms] = arr
 
@@ -243,6 +255,9 @@ const core = {
   remainder: (a, b) => a % b,
   square: (x) => x * x,
   runtime: () => Date.now(),
+  identity: (x) => x,
+  inc: (x) => x + 1,
+  dec: (x) => x - 1,
   power: (a, b) => a ** b, // is this scheme?
 }
 
