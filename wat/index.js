@@ -27,6 +27,14 @@ const read = (s) => {
   )
 }
 
+const Compiled = (l, g) => ({
+  [Symbol.iterator]: function* () {
+    yield l
+    yield g ?? ""
+  },
+  append: (m, h) => Compiled(l + m, (g ?? "") + (h ?? "")),
+})
+
 const sym = (() => {
   const lookup = {}
 
@@ -38,31 +46,40 @@ const sym = (() => {
     return lookup[exp]
   }
 })()
+
+const fn = (() => {
+  let i = 0
+
+  return () => {
+    return i++
+  }
+})()
+
 const compile = (exp, locals = new Set()) => {
   if (typeof exp === "number") {
-    return [
+    return Compiled(
       `
     i32.const ${exp}
     call $alloc-int
-    `,
-    ]
+    `
+    )
   }
 
   if (typeof exp === "string") {
     if (locals.has(exp)) {
-      return [
+      return Compiled(
         `
     local.get $${exp}
-      `,
-      ]
+      `
+      )
     }
 
-    return [
+    return Compiled(
       `
     local.get $env
     i32.load offset=${8 + 4 * sym(exp)}
-    `,
-    ]
+    `
+    )
   }
 
   if (Array.isArray(exp)) {
@@ -73,7 +90,7 @@ const compile = (exp, locals = new Set()) => {
       const [name, val] = args
       const [l, g] = compile(val, locals)
 
-      return [
+      return Compiled(
         `
     local.get $env
     ${l}
@@ -81,23 +98,25 @@ const compile = (exp, locals = new Set()) => {
     i32.const ${sym(name)}
     call $alloc-int
       `,
-        g ?? "",
-      ]
+        g
+      )
     }
 
     // (fn (x y) (+ x y))
     if (op === "fn") {
       const [names, body] = args
       const [l, g] = compile(body, new Set([...locals /*, ...names*/]))
+      const index = fn()
 
-      return [
+      return Compiled(
         `
-    i32.const 0
+    i32.const ${index}
+    local.get $env
     call $alloc-fn
         `,
         (g ?? "") +
           `
-  (func $tmpfn (param $args i32) (param $parent i32) (result i32)
+  (func $fn${index} (param $args i32) (param $parent i32) (result i32)
     (local $env i32)
     (local $i i32)
 
@@ -118,28 +137,28 @@ const compile = (exp, locals = new Set()) => {
 
     ${l}
   )
-  (elem (i32.const 0) $tmpfn)
-      `,
-      ]
+  (elem (i32.const ${index}) $fn${index})
+      `
+      )
     }
 
     // (+ a b)
     if (op === "+" && args.length === 2) {
       if (typeof args[0] === "number" && typeof args[1] === "number") {
-        return [
+        return Compiled(
           `
     i32.const ${args[0]}
     i32.const ${args[1]}
     i32.add
     call $alloc-int
-        `,
-        ]
+        `
+        )
       }
 
       const [l1, g1] = compile(args[0], locals)
       const [l2, g2] = compile(args[1], locals)
 
-      return [
+      return Compiled(
         `
     ${l1}
     i32.load offset=4
@@ -148,8 +167,8 @@ const compile = (exp, locals = new Set()) => {
     i32.add
     call $alloc-int
       `,
-        (g1 ?? "") + (g2 ?? ""),
-      ]
+        g1 + g2
+      )
     }
 
     // (f x y)
@@ -176,19 +195,21 @@ const compile = (exp, locals = new Set()) => {
       const [l, g] = compile(op, locals)
       apply[0] += `
     local.get $t
-    local.get $env
     ${l}
       `
       apply[1] += "\n" + (g ?? "")
 
-      return [
+      return Compiled(
         `
-      ${apply[0]}
-      i32.load offset=4
-      call_indirect (type $fntype)
+    ${apply[0]}
+    local.tee $t
+    i32.load offset=8
+    local.get $t
+    i32.load offset=4
+    call_indirect (type $fntype)
       `,
-        apply[1],
-      ]
+        apply[1]
+      )
     }
   }
 

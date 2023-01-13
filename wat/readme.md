@@ -1,3 +1,8 @@
+- optimize pure functions with local vars
+- capture env scope with function
+- syntax for vector
+- gc
+
 ```txt
 Type
   type: i32 (SYMBOL=0, INT=1, REAL=2, STRING=3, FUNCTION=4, VECTOR=5)
@@ -22,6 +27,7 @@ String
 Function
   FUNCTION
   index: i32
+  env: i32
 
 Vector
   VECTOR

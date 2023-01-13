@@ -31,10 +31,10 @@
     local.get $r
   )
 
-  (func $alloc-fn (param $i i32) (result i32)
+  (func $alloc-fn (param $i i32) (param $env i32) (result i32)
     (local $p i32)
 
-    i32.const 8
+    i32.const 12
     call $alloc
     local.tee $p
     i32.const 4 ;; FUNCTION
@@ -42,6 +42,9 @@
     local.get $p
     local.get $i
     i32.store offset=4
+    local.get $p
+    local.get $env
+    i32.store offset=8
     local.get $p
   )
 

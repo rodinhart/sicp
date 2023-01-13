@@ -1,3 +1,7 @@
-(def y 7)
+(def x 100)
 
-((fn (x) (+ y x)) 11)
+(def incby (fn (x) (fn (y) (+ x y))))
+
+(def f (incby 3))
+
+(f 10)
