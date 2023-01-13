@@ -27,7 +27,17 @@ const read = (s) => {
   )
 }
 
-const symbols = {}
+const sym = (() => {
+  const lookup = {}
+
+  return (exp) => {
+    if (!(exp in lookup)) {
+      lookup[exp] = Object.keys(lookup).length
+    }
+
+    return lookup[exp]
+  }
+})()
 const compile = (exp, locals = new Set()) => {
   if (typeof exp === "number") {
     return [
@@ -50,7 +60,7 @@ const compile = (exp, locals = new Set()) => {
     return [
       `
     local.get $env
-    i32.load offset=${symbols[exp]}
+    i32.load offset=${4 * sym(exp)}
     `,
     ]
   }
@@ -58,26 +68,27 @@ const compile = (exp, locals = new Set()) => {
   if (Array.isArray(exp)) {
     const [op, ...args] = exp
 
+    // (def x 10)
     if (op === "def") {
       const [name, val] = args
-      symbols[name] = Object.keys(symbols).length
       const [l, g] = compile(val, locals)
 
       return [
         `
     local.get $env
     ${l}
-    i32.store offset=${symbols[name]}
-    i32.const ${symbols[name]}
+    i32.store offset=${4 * sym(name)}
+    i32.const ${sym(name)}
     call $alloc-int
       `,
         g ?? "",
       ]
     }
 
+    // (fn (x y) (+ x y))
     if (op === "fn") {
       const [names, body] = args
-      const [l, g] = compile(body, new Set([...locals, ...names]))
+      const [l, g] = compile(body, new Set([...locals /*, ...names*/]))
 
       return [
         `
@@ -86,17 +97,67 @@ const compile = (exp, locals = new Set()) => {
         `,
         (g ?? "") +
           `
-    (func $tmpfn ${names
-      .map((name) => `(param $${name} i32)`)
-      .join(" ")} (result i32)
-      ${l}
-    )
-    (elem (i32.const 0) $tmpfn)
+  (func $tmpfn (param $args i32) (param $parent i32) (result i32)
+    (local $env i32)
+    (local $i i32)
+
+    i32.const 1024
+    call $alloc
+    local.set $env
+    i32.const 256
+    local.set $i
+    loop $loop
+      local.get $i
+      i32.const 1
+      i32.sub
+      local.tee $i
+
+      local.get $env
+      i32.add
+      local.get $parent
+      local.get $i
+      i32.add
+      i32.load
+      
+      i32.store
+
+      local.get $i
+      i32.const 0
+      i32.ge_s
+      br_if $loop
+    end
+
+    ${names
+      .map((name, i) => {
+        return `
+    local.get $env
+    local.get $args
+    i32.load offset=${8 + 4 * i}
+    i32.store offset=${4 * sym(name)}
+      `
+      })
+      .join("\n")}
+
+    ${l}
+  )
+  (elem (i32.const 0) $tmpfn)
       `,
       ]
     }
 
+    // (+ a b)
     if (op === "+" && args.length === 2) {
+      if (typeof args[0] === "number" && typeof args[1] === "number") {
+        return [
+          `
+    i32.const ${args[0]}
+    i32.const ${args[1]}
+    i32.add
+    call $alloc-int
+        `,
+        ]
+      }
+
       const [l1, g1] = compile(args[0], locals)
       const [l2, g2] = compile(args[1], locals)
 
@@ -113,23 +174,40 @@ const compile = (exp, locals = new Set()) => {
       ]
     }
 
+    // (f x y)
     {
-      const apply = ["", "(type $fntype (func (param i32) (result i32)))"]
-      for (const arg of args) {
-        const [l, g] = compile(arg, locals)
-        apply[0] += "\n" + l
+      const apply = [
+        `
+    i32.const ${args.length}
+    call $alloc-vector
+    local.set $t
+      `,
+        "",
+      ]
+
+      for (let i = 0; i < args.length; i++) {
+        const [l, g] = compile(args[i], locals)
+        apply[0] += `
+    local.get $t
+    ${l}
+    i32.store offset=${8 + 4 * i}
+        `
         apply[1] += "\n" + (g ?? "")
       }
 
       const [l, g] = compile(op, locals)
-      apply[0] += "\n" + l
+      apply[0] += `
+    local.get $t
+    local.get $env
+    ${l}
+      `
       apply[1] += "\n" + (g ?? "")
 
       return [
         `
-    ${apply[0]}
-    i32.load offset=4
-    call_indirect (type $fntype)
+      ${apply[0]}
+      i32.load offset=4
+      call_indirect (type $fntype)
       `,
         apply[1],
       ]
@@ -181,7 +259,7 @@ const wasmInstance = new WebAssembly.Instance(wasm, { js: { mem } })
 const { main } = wasmInstance.exports
 
 const memory = new Uint32Array(mem.buffer, 0, 4)
-memory[0] = 4
+memory[0] = 256
 
-const len = main(100)
-console.log(new TextDecoder().decode(new Uint8Array(mem.buffer, 100, len)))
+const len = main(4)
+console.log(len, new TextDecoder().decode(new Uint8Array(mem.buffer, 4, len)))

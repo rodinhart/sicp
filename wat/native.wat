@@ -1,4 +1,6 @@
 (module
+  (type $fntype (func (param i32) (param i32) (result i32)))
+
   (memory (import "js" "mem") 0)
 
   (table 2 anyfunc)
@@ -21,7 +23,7 @@
     i32.const 8
     call $alloc
     local.tee $r
-    i32.const 1
+    i32.const 1 ;; INT
     i32.store
     local.get $r
     local.get $n
@@ -30,16 +32,35 @@
   )
 
   (func $alloc-fn (param $i i32) (result i32)
-    (local $r i32)
+    (local $p i32)
 
     i32.const 8
-    local.tee $r
-    i32.const 4
+    call $alloc
+    local.tee $p
+    i32.const 4 ;; FUNCTION
     i32.store
-    local.get $r
+    local.get $p
     local.get $i
     i32.store offset=4
-    local.get $r
+    local.get $p
+  )
+
+  (func $alloc-vector (param $n i32) (result i32)
+    (local $p i32)
+
+    i32.const 8
+    local.get $n
+    i32.const 4
+    i32.mul
+    i32.add
+    call $alloc
+    local.tee $p
+    i32.const 5 ;; VECTOR
+    i32.store
+    local.get $p
+    local.get $n
+    i32.store offset=4
+    local.get $p
   )
 
   (func $prn-int (param $buf i32) (param $n i32) (result i32)
@@ -175,6 +196,7 @@ ${compiled[1]}
 
   (func $main (export "main") (param $buf i32) (result i32)
     (local $env i32)
+    (local $t i32)
 
     i32.const 1024
     call $alloc
