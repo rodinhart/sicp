@@ -60,7 +60,7 @@ const compile = (exp, locals = new Set()) => {
     return [
       `
     local.get $env
-    i32.load offset=${4 * sym(exp)}
+    i32.load offset=${8 + 4 * sym(exp)}
     `,
     ]
   }
@@ -77,7 +77,7 @@ const compile = (exp, locals = new Set()) => {
         `
     local.get $env
     ${l}
-    i32.store offset=${4 * sym(name)}
+    i32.store offset=${8 + 4 * sym(name)}
     i32.const ${sym(name)}
     call $alloc-int
       `,
@@ -101,31 +101,9 @@ const compile = (exp, locals = new Set()) => {
     (local $env i32)
     (local $i i32)
 
-    i32.const 1024
-    call $alloc
+    local.get $parent
+    call $copy-vector
     local.set $env
-    i32.const 256
-    local.set $i
-    loop $loop
-      local.get $i
-      i32.const 1
-      i32.sub
-      local.tee $i
-
-      local.get $env
-      i32.add
-      local.get $parent
-      local.get $i
-      i32.add
-      i32.load
-      
-      i32.store
-
-      local.get $i
-      i32.const 0
-      i32.ge_s
-      br_if $loop
-    end
 
     ${names
       .map((name, i) => {
@@ -133,7 +111,7 @@ const compile = (exp, locals = new Set()) => {
     local.get $env
     local.get $args
     i32.load offset=${8 + 4 * i}
-    i32.store offset=${4 * sym(name)}
+    i32.store offset=${8 + 4 * sym(name)}
       `
       })
       .join("\n")}

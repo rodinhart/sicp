@@ -63,6 +63,35 @@
     local.get $p
   )
 
+  (func $copy-vector (param $src i32) (result i32)
+    (local $p i32)
+    (local $i i32)
+
+    local.get $src
+    i32.load offset=4
+    local.tee $i
+    call $alloc-vector
+    local.tee $p
+    loop $loop
+      local.get $i
+      i32.const 1
+      i32.sub
+      local.tee $i
+      local.get $p
+      i32.add
+      local.get $i
+      local.get $src
+      i32.add
+      i32.load offset=8
+      i32.store offset=8
+
+      local.get $i
+      i32.const 0
+      i32.ge_s
+      br_if $loop
+    end
+  )
+
   (func $prn-int (param $buf i32) (param $n i32) (result i32)
     (local $t i32)
 
@@ -198,8 +227,8 @@ ${compiled[1]}
     (local $env i32)
     (local $t i32)
 
-    i32.const 1024
-    call $alloc
+    i32.const 256
+    call $alloc-vector
     local.set $env
 
     local.get $buf
