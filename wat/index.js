@@ -222,15 +222,14 @@ const compile = (exp, locals = new Set()) => {
       return C`
     i32.const ${args.length}
     call $alloc-vector
-    local.set $t
 
     ${args.map(
       (arg, i) => C`
+    local.tee $t
     local.get $t
     ${compile(arg, locals)}
     i32.store offset=${8 + 4 * i}
 
-    local.get $t ;; push args
     ${compile(op, locals)}
     local.tee $t
     i32.load offset=8 ;; push scope
@@ -247,17 +246,15 @@ const compile = (exp, locals = new Set()) => {
     return C`
     i32.const ${exp.length}
     call $alloc-vector
-    local.set $t
 
     ${exp.map(
       (item, i) => C`
+    local.tee $t
     local.get $t
     ${compile(item, locals)}
     i32.store offset=${8 + 4 * i}
     `
     )}
-
-    local.get $t
     `
   }
 
@@ -311,7 +308,7 @@ const wasmInstance = new WebAssembly.Instance(wasm, { js: { mem } })
 const { main } = wasmInstance.exports
 
 const memory = new Uint32Array(mem.buffer, 0, 4)
-memory[0] = 256
+memory[0] = 1024
 
 const len = main(4)
 console.log(len, new TextDecoder().decode(new Uint8Array(mem.buffer, 4, len)))

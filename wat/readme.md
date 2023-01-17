@@ -1,5 +1,6 @@
+- strings
+- maps
 - optimize pure functions with local vars
-- syntax for vector
 - gc
 
 ```txt
