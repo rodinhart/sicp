@@ -1,5 +1,27 @@
 // import WabtModule from "./libwabt.js"
 
+const NIL = {
+  // map: (_) => [],
+}
+const cons = (car, cdr) => ({
+  car,
+  cdr,
+  [Symbol.iterator]: function* () {
+    for (let c = cons(car, cdr); c !== NIL; c = c.cdr) {
+      yield c.car
+    }
+  },
+  // map: (f) => {
+  //   const r = []
+  //   for (let c = cons(car, cdr); c !== NIL; c = c.cdr) {
+  //     r.push(f(c.car, r.length))
+  //   }
+
+  //   return r
+  // },
+})
+const isList = (x) => x === NIL || x.cdr
+
 const read = (s) => {
   const _ = (xs) => {
     const x = xs.shift()
@@ -13,7 +35,23 @@ const read = (s) => {
         throw new Error("Missing )")
       }
 
-      return r
+      let c = NIL
+      for (let i = r.length - 1; i >= 0; i--) {
+        c = cons(r[i], c)
+      }
+
+      return c
+    } else if (x === "[") {
+      const vector = []
+      while (xs.length && xs[0] !== "]") {
+        vector.push(_(xs))
+      }
+
+      if (xs.shift() !== "]") {
+        throw new Error("Missing ]")
+      }
+
+      return vector
     }
 
     return String(Number(x)) === x ? Number(x) : x
@@ -21,10 +59,27 @@ const read = (s) => {
 
   return _(
     s
-      .replace(/([\(\)])/g, " $1 ")
+      .replace(/([\(\)\[\]])/g, " $1 ")
       .trim()
       .split(/\s+/)
   )
+}
+
+const prn = (x) => {
+  if (isList(x)) {
+    const r = []
+    for (let c = x; c !== NIL; c = c.cdr) {
+      r.push(prn(c.car))
+    }
+
+    return `(${r.join(" ")})`
+  }
+
+  if (Array.isArray(x)) {
+    return `[${x.map((y) => prn(y)).join(" ")}]`
+  }
+
+  return String(x)
 }
 
 const Compiled = (l, g) => ({
@@ -92,7 +147,7 @@ const compile = (exp, locals = new Set()) => {
     `
   }
 
-  if (Array.isArray(exp)) {
+  if (isList(exp)) {
     const [op, ...args] = exp
 
     // (def x 10)
@@ -188,10 +243,28 @@ const compile = (exp, locals = new Set()) => {
     }
   }
 
+  if (Array.isArray(exp)) {
+    return C`
+    i32.const ${exp.length}
+    call $alloc-vector
+    local.set $t
+
+    ${exp.map(
+      (item, i) => C`
+    local.get $t
+    ${compile(item, locals)}
+    i32.store offset=${8 + 4 * i}
+    `
+    )}
+
+    local.get $t
+    `
+  }
+
   throw new Error(`Cannot compile ${exp}`)
 }
 
-const src = read(`(${await fetch("./core.clj").then((r) => r.text())})`)
+const src = read(`[${await fetch("./core.clj").then((r) => r.text())}]`)
 
 const compiled = C`
     ${src.map(
@@ -204,11 +277,12 @@ const compiled = C`
 
 const wat = (await fetch("./native.wat").then((r) => r.text()))
   .replace("${compiled[1]}", compiled.g)
-  .replace(/\n\s*\n/g, "\n\n")
   .replace("${compiled[0]}", compiled.l)
   .replace(/\n\s*\n/g, "\n\n")
 console.log(wat)
 
+//
+// load wat
 const module = WabtModule().parseWat("test.wat", wat)
 // console.log(module.toText({}))
 

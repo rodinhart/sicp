@@ -185,6 +185,74 @@
     end
   )
 
+  (func $prn-vector (param $buf i32) (param $x i32) (result i32)
+    (local $p i32)
+    (local $i i32)
+
+    local.get $buf
+    i32.const 91
+    i32.store
+
+    local.get $buf
+    i32.const 1
+    i32.add
+    local.set $p
+
+    block $block
+      local.get $x
+      i32.load offset=4
+      i32.const 0
+      i32.le_s
+      br_if $block
+
+      i32.const 0
+      local.set $i
+      loop $loop
+        local.get $p
+
+        local.get $p
+        local.get $x
+        i32.const 4
+        local.get $i
+        i32.mul
+        i32.add
+        i32.load offset=8
+        call $prn
+
+        i32.add
+        local.set $p
+
+        local.get $p
+        i32.const 32
+        i32.store8
+        local.get $p
+        i32.const 1
+        i32.add
+        local.set $p
+
+        local.get $i
+        i32.const 1
+        i32.add
+        local.tee $i
+        local.get $x
+        i32.load offset=4
+        i32.lt_s
+        br_if $loop
+      end
+    end
+
+
+    local.get $p
+    i32.const 93
+    i32.store
+
+    local.get $p
+    i32.const 1
+    i32.add
+    local.get $buf
+    i32.sub
+  )
+
   (func $prn (param $buf i32) (param $x i32) (result i32)
     (local $t i32)
 
@@ -200,7 +268,7 @@
       call $prn-int
     else
       local.get $t
-      i32.const 2
+      i32.const 2 ;; REAL
       i32.eq
       if (result i32)
         local.get $buf
@@ -210,7 +278,7 @@
         call $prn-string
       else
         local.get $t
-        i32.const 4
+        i32.const 4 ;; FUNCTION
         i32.eq
         if (result i32)
           local.get $buf
@@ -218,7 +286,16 @@
           i32.load offset=4
           call $prn-fn
         else
-          i32.const 0
+          local.get $t
+          i32.const 5 ;; VECTOR
+          i32.eq
+          if (result i32)
+            local.get $buf
+            local.get $x
+            call $prn-vector
+          else
+            i32.const 0
+          end
         end
       end
     end
