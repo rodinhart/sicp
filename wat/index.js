@@ -54,6 +54,13 @@ const read = (s) => {
       return vector
     }
 
+    const match = x.match(/^"([^"]*)"$/)
+    if (match) {
+      return {
+        string: match[1],
+      }
+    }
+
     return String(Number(x)) === x ? Number(x) : x
   }
 
@@ -77,6 +84,10 @@ const prn = (x) => {
 
   if (Array.isArray(x)) {
     return `[${x.map((y) => prn(y)).join(" ")}]`
+  }
+
+  if (x && x.string !== undefined) {
+    return `"${x.string}"`
   }
 
   return String(x)
@@ -255,6 +266,27 @@ const compile = (exp, locals = new Set()) => {
     i32.store offset=${8 + 4 * i}
     `
     )}
+    `
+  }
+
+  if (exp && exp.string !== undefined) {
+    return C`
+    i32.const ${8 + exp.string.length}
+    call $alloc
+    local.tee $t
+    i32.const 3 ;; STRING
+    i32.store
+    local.get $t
+    i32.const ${exp.string.length}
+    i32.store offset=4
+    ${exp.string.split("").map(
+      (c, i) => C`
+    local.get $t
+    i32.const ${c.charCodeAt(0)}
+    i32.store offset=${8 + i}
+    `
+    )}
+    local.get $t
     `
   }
 

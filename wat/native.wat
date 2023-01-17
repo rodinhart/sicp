@@ -150,6 +150,14 @@
     (local $src i32)
     (local $i i32)
 
+    local.get $buf
+    i32.const 34 ;; "
+    i32.store8
+    local.get $buf
+    i32.const 1
+    i32.add
+    local.set $buf
+
     local.get $s
     i32.const 4
     i32.add
@@ -180,9 +188,16 @@
       local.set $buf
 
       i32.const 0
-      i32.ge_s
+      i32.gt_s
       br_if $loop
     end
+
+    local.get $buf
+    i32.const 34 ;; "
+    i32.store8
+
+    i32.const 2
+    i32.add
   )
 
   (func $prn-vector (param $buf i32) (param $x i32) (result i32)
@@ -268,7 +283,7 @@
       call $prn-int
     else
       local.get $t
-      i32.const 2 ;; REAL
+      i32.const 3 ;; STRING
       i32.eq
       if (result i32)
         local.get $buf
