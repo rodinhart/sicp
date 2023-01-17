@@ -1,5 +1,4 @@
 - optimize pure functions with local vars
-- capture env scope with function
 - syntax for vector
 - gc
 
