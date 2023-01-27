@@ -1,8 +1,6 @@
 // import WabtModule from "./libwabt.js"
 
-const NIL = {
-  // map: (_) => [],
-}
+const NIL = {}
 const cons = (car, cdr) => ({
   car,
   cdr,
@@ -11,19 +9,12 @@ const cons = (car, cdr) => ({
       yield c.car
     }
   },
-  // map: (f) => {
-  //   const r = []
-  //   for (let c = cons(car, cdr); c !== NIL; c = c.cdr) {
-  //     r.push(f(c.car, r.length))
-  //   }
-
-  //   return r
-  // },
 })
 const isList = (x) => x === NIL || x.cdr
+const isString = (x) => x && x.string !== undefined
 
-const read = (s) => {
-  const _ = (xs) => {
+const read = (s, tx = (x) => x) => {
+  let _ = (xs) => {
     const x = xs.shift()
     if (x === "(") {
       const r = []
@@ -52,21 +43,36 @@ const read = (s) => {
       }
 
       return vector
+    } else if (x === "{") {
+      const r = []
+      while (xs.length && xs[0] !== "}") {
+        r.push(_(xs))
+      }
+
+      if (xs.shift() !== "}") {
+        throw new Error("Missing }")
+      }
+
+      return [{ string: "#" }, ...r]
     }
 
     const match = x.match(/^"([^"]*)"$/)
     if (match) {
       return {
-        string: match[1],
+        string: match[1].replace(/👽/g, " "),
       }
     }
 
     return String(Number(x)) === x ? Number(x) : x
   }
 
+  const $ = _
+  _ = (x) => tx($(x))
+
   return _(
     s
-      .replace(/([\(\)\[\]])/g, " $1 ")
+      .replace(/\s+(?=(?:(?:[^"]*"){2})*[^"]*"[^"]*$)/g, "👽")
+      .replace(/([\(\)\[\]{}])/g, " $1 ")
       .trim()
       .split(/\s+/)
   )
@@ -86,7 +92,7 @@ const prn = (x) => {
     return `[${x.map((y) => prn(y)).join(" ")}]`
   }
 
-  if (x && x.string !== undefined) {
+  if (isString(x)) {
     return `"${x.string}"`
   }
 
@@ -210,6 +216,23 @@ const compile = (exp, locals = new Set()) => {
         `
     }
 
+    // (if p c a)
+    if (op === "if") {
+      const [predicate, consequent, alternative] = args
+
+      return C`
+    ${compile(predicate, locals)}
+    i32.load offset=4
+    i32.const 0
+    i32.ne
+    if (result i32)
+      ${compile(consequent, locals)}
+    else
+      ${compile(alternative, locals)}
+    end
+      `
+    }
+
     // (+ a b)
     if (op === "+" && args.length === 2) {
       return C`
@@ -269,7 +292,7 @@ const compile = (exp, locals = new Set()) => {
     `
   }
 
-  if (exp && exp.string !== undefined) {
+  if (isString(exp)) {
     return C`
     i32.const ${8 + exp.string.length}
     call $alloc
@@ -308,7 +331,7 @@ const wat = (await fetch("./native.wat").then((r) => r.text()))
   .replace("${compiled[1]}", compiled.g)
   .replace("${compiled[0]}", compiled.l)
   .replace(/\n\s*\n/g, "\n\n")
-console.log(wat)
+// console.log(wat)
 
 //
 // load wat
@@ -343,4 +366,33 @@ const memory = new Uint32Array(mem.buffer, 0, 4)
 memory[0] = 1024
 
 const len = main(4)
-console.log(len, new TextDecoder().decode(new Uint8Array(mem.buffer, 4, len)))
+const result = new TextDecoder().decode(new Uint8Array(mem.buffer, 4, len))
+const html = read(result, (x) =>
+  x && x.string !== undefined
+    ? x.string
+    : Array.isArray(x) && x[0] === "#"
+    ? x.slice(1).reduce((r, _, i, arr) => {
+        if (i % 2 === 0) {
+          r[arr[i]] = arr[i + 1]
+        }
+
+        return r
+      }, {})
+    : x
+)
+
+const jsonml2xml = (el) => {
+  if (Array.isArray(el)) {
+    const [tag, props, ...children] = el
+
+    return `<${tag}${Object.entries(props).map(
+      ([key, val]) => ` ${key}="${val}"`
+    )}>${children.map((child) => jsonml2xml(child)).join("\n")}</${tag}>`
+  }
+
+  return String(el)
+}
+
+document.getElementById("app").innerHTML = jsonml2xml(html)
+
+console.log(len, jsonml2xml(html))
