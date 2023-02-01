@@ -81,6 +81,24 @@ export const compile = (exp, locals = new Set()) => {
       `
     }
 
+    // (export square)
+    if (op === "export") {
+      const [ext] = args
+
+      return Compiled(
+        `
+    i32.const 4
+    call $alloc
+    local.tee $t
+    local.get $t
+    i32.const 6 ;; NIL
+    i32.store`,
+        `
+  (export "${ext}" (func $fn${0}))
+      `
+      )
+    }
+
     // (fn (x y) (+ x y))
     if (op === "fn") {
       const [names, body] = args
@@ -90,6 +108,7 @@ export const compile = (exp, locals = new Set()) => {
   (func $fn${index} (param $args i32) (param $parent i32) (result i32)
     (local $env i32)
     (local $i i32)
+    (local $t i32)
 
     local.get $parent
     call $copy-vector
@@ -195,7 +214,7 @@ export const compile = (exp, locals = new Set()) => {
 
   if (isString(exp)) {
     return C`
-    i32.const ${8 + exp.string.length}
+    i32.const ${(8 + (exp.string.length + 3)) & ~3}
     call $alloc
     local.tee $t
     i32.const 3 ;; STRING

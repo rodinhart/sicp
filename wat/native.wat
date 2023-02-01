@@ -309,7 +309,26 @@
             local.get $x
             call $prn-vector
           else
-            i32.const 0
+            local.get $t
+            i32.const 6 ;; NIL
+            i32.eq
+            if (result i32)
+              local.get $buf
+              i32.const 110
+              i32.store offset=0
+
+              local.get $buf
+              i32.const 105
+              i32.store offset=1
+
+              local.get $buf
+              i32.const 108
+              i32.store offset=2
+
+              i32.const 3
+            else
+              i32.const 0
+            end
           end
         end
       end

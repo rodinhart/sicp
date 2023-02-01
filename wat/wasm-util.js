@@ -28,7 +28,7 @@ export const loadWat = (wat) => {
   })
   const wasmInstance = new WebAssembly.Instance(wasm, { js: { mem } })
 
-  const { main } = wasmInstance.exports
+  const { main, test } = wasmInstance.exports
 
-  return { main, mem }
+  return { main, mem, test }
 }
