@@ -1,3 +1,2 @@
-(def test (fn [x] x))
+(def test (fn "test" [x] x))
 
-(export test)

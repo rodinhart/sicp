@@ -1,5 +1,3 @@
-- fix hardcoded (export $fn!!)
-- use msgpack for memory model??
 - maps
 - optimize pure functions with local vars
 - gc

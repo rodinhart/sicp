@@ -75,37 +75,31 @@ export const compile = (exp, locals = new Set()) => {
       return C`
     local.get $env
     ${compile(val, locals)}
-    i32.store offset=${8 + 4 * sym(name)}
-    i32.const ${sym(name)}
-    call $alloc-int
-      `
-    }
-
-    // (export square)
-    if (op === "export") {
-      const [ext] = args
-
-      return Compiled(
-        `
-    i32.const 4
-    call $alloc
     local.tee $t
+    i32.store offset=${8 + 4 * sym(name)}
     local.get $t
-    i32.const 6 ;; NIL
-    i32.store`,
-        `
-  (export "${ext}" (func $fn${0}))
       `
-      )
     }
 
-    // (fn (x y) (+ x y))
+    // (fn [x y] (+ x y))
+    // (fn "exportName" [x y] (+ x y))
     if (op === "fn") {
-      const [names, body] = args
+      let exportName, names, body
+      if (isString(args[0])) {
+        exportName = args[0].string
+        names = args[1]
+        body = args[2]
+      } else {
+        names = args[0]
+        body = args[1]
+      }
+
       const index = fn()
 
       const func = C`
-  (func $fn${index} (param $args i32) (param $parent i32) (result i32)
+  (func $fn${index}${
+        exportName ? ` (export "${exportName}")` : ""
+      } (param $args i32) (param $parent i32) (result i32)
     (local $env i32)
     (local $i i32)
     (local $t i32)
