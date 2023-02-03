@@ -3,7 +3,7 @@
 
   (memory (import "js" "mem") 0)
 
-  (table 2 anyfunc)
+  (table 16 anyfunc)
 
   (func $alloc (export "alloc") (param $c i32) (result i32)
     (local $t i32)
@@ -337,15 +337,13 @@
 
 ${compiled[1]}
 
-  (func $main (export "main") (param $buf i32) (result i32)
+  (func $init (export "init") (result i32)
     (local $env i32)
     (local $t i32)
 
     i32.const 256
     call $alloc-vector
     local.set $env
-
-    local.get $buf
 
 ${compiled[0]}
   )

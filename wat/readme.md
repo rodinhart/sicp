@@ -1,3 +1,4 @@
+- Should free pointer live at 0?
 - maps
 - optimize pure functions with local vars
 - gc
